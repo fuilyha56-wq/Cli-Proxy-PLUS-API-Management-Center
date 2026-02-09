@@ -160,7 +160,7 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
     setLogLoading(true);
     try {
       const response = await usageApi.getUsage();
-      const usageData = response?.usage ?? response;
+      const usageData = (response?.usage ?? response) as Record<string, unknown>;
 
       // 应用时间范围过滤
       if (usageData?.apis) {
