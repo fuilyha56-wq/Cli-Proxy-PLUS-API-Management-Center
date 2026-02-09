@@ -31,6 +31,7 @@ import {
   KIRO_QUOTA_URL,
   KIRO_REQUEST_HEADERS,
   normalizeAuthIndexValue,
+  normalizeGeminiCliModelId,
   normalizeNumberValue,
   normalizePlanType,
   normalizeQuotaFraction,
@@ -375,7 +376,7 @@ const fetchGeminiCliQuota = async (
 
   const parsedBuckets = buckets
     .map((bucket) => {
-      const modelId = normalizeStringValue(bucket.modelId ?? bucket.model_id);
+      const modelId = normalizeGeminiCliModelId(bucket.modelId ?? bucket.model_id);
       if (!modelId) return null;
       const tokenType = normalizeStringValue(bucket.tokenType ?? bucket.token_type);
       const remainingFractionRaw = normalizeQuotaFraction(

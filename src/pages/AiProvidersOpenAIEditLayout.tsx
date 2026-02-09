@@ -243,7 +243,7 @@ export function AiProvidersOpenAIEditLayout() {
       setTestStatus('idle');
       setTestMessage('');
     }
-  }, [availableModels, loading, testModel]);
+  }, [availableModels, loading, setTestMessage, setTestModel, setTestStatus, testModel]);
 
   const mergeDiscoveredModels = useCallback(
     (selectedModels: ModelInfo[]) => {
@@ -280,12 +280,20 @@ export function AiProvidersOpenAIEditLayout() {
   );
 
   const handleSave = useCallback(async () => {
+    const name = form.name.trim();
+    const baseUrl = form.baseUrl.trim();
+
+    if (!name || !baseUrl) {
+      showNotification(t('notification.openai_provider_required'), 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       const payload: OpenAIProviderConfig = {
-        name: form.name.trim(),
+        name,
         prefix: form.prefix?.trim() || undefined,
-        baseUrl: form.baseUrl.trim(),
+        baseUrl,
         headers: buildHeaderObject(form.headers),
         apiKeyEntries: form.apiKeyEntries.map((entry: ApiKeyEntry) => ({
           apiKey: entry.apiKey.trim(),

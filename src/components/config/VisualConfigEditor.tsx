@@ -6,6 +6,8 @@ import { Modal } from '@/components/ui/Modal';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { IconChevronDown } from '@/components/ui/icons';
 import { ConfigSection } from '@/components/config/ConfigSection';
+import { useNotificationStore } from '@/stores';
+import styles from './VisualConfigEditor.module.scss';
 import type {
   PayloadFilterRule,
   PayloadModelEntry,
@@ -200,6 +202,7 @@ function ApiKeysCardEditor({
   onChange: (nextValue: string) => void;
 }) {
   const { t } = useTranslation();
+  const { showNotification } = useNotificationStore();
   const apiKeys = useMemo(
     () =>
       value
@@ -262,6 +265,34 @@ function ApiKeysCardEditor({
     closeModal();
   };
 
+  const handleCopy = async (apiKey: string) => {
+    const copyByExecCommand = () => {
+      const textarea = document.createElement('textarea');
+      textarea.value = apiKey;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      textarea.style.pointerEvents = 'none';
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const copied = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (!copied) throw new Error('copy_failed');
+    };
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(apiKey);
+      } else {
+        copyByExecCommand();
+      }
+      showNotification(t('notification.link_copied'), 'success');
+    } catch {
+      showNotification(t('notification.copy_failed'), 'error');
+    }
+  };
+
   return (
     <div className="form-group" style={{ marginBottom: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -293,6 +324,9 @@ function ApiKeysCardEditor({
                 <div className="item-subtitle">{maskApiKey(String(key || ''))}</div>
               </div>
               <div className="item-actions">
+                <Button variant="secondary" size="sm" onClick={() => handleCopy(key)} disabled={disabled}>
+                  {t('common.copy')}
+                </Button>
                 <Button variant="secondary" size="sm" onClick={() => openEditModal(index)} disabled={disabled}>
                   {t('config_management.visual.common.edit')}
                 </Button>
@@ -358,7 +392,7 @@ function StringListEditor({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((item, index) => (
-        <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             className="input"
             placeholder={placeholder}
@@ -471,7 +505,15 @@ function PayloadRulesEditor({
             gap: 12,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
             <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{t('config_management.visual.payload_rules.rule')} {ruleIndex + 1}</div>
             <Button variant="ghost" size="sm" onClick={() => removeRule(ruleIndex)} disabled={disabled}>
               {t('config_management.visual.common.delete')}
@@ -483,11 +525,9 @@ function PayloadRulesEditor({
             {(rule.models.length ? rule.models : []).map((model, modelIndex) => (
               <div
                 key={model.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: protocolFirst ? '160px 1fr auto' : '1fr 160px auto',
-                  gap: 8,
-                }}
+                className={[styles.payloadRuleModelRow, protocolFirst ? styles.payloadRuleModelRowProtocolFirst : '']
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 {protocolFirst ? (
                   <>
@@ -532,7 +572,13 @@ function PayloadRulesEditor({
                     />
                   </>
                 )}
-                <Button variant="ghost" size="sm" onClick={() => removeModel(ruleIndex, modelIndex)} disabled={disabled}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={styles.payloadRowActionButton}
+                  onClick={() => removeModel(ruleIndex, modelIndex)}
+                  disabled={disabled}
+                >
                   {t('config_management.visual.common.delete')}
                 </Button>
               </div>
@@ -547,7 +593,7 @@ function PayloadRulesEditor({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('config_management.visual.payload_rules.params')}</div>
             {(rule.params.length ? rule.params : []).map((param, paramIndex) => (
-              <div key={param.id} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 1fr auto', gap: 8 }}>
+              <div key={param.id} className={styles.payloadRuleParamRow}>
                 <input
                   className="input"
                   placeholder={t('config_management.visual.payload_rules.json_path')}
@@ -571,7 +617,13 @@ function PayloadRulesEditor({
                   onChange={(e) => updateParam(ruleIndex, paramIndex, { value: e.target.value })}
                   disabled={disabled}
                 />
-                <Button variant="ghost" size="sm" onClick={() => removeParam(ruleIndex, paramIndex)} disabled={disabled}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={styles.payloadRowActionButton}
+                  onClick={() => removeParam(ruleIndex, paramIndex)}
+                  disabled={disabled}
+                >
                   {t('config_management.visual.common.delete')}
                 </Button>
               </div>
@@ -658,7 +710,15 @@ function PayloadFilterRulesEditor({
             gap: 12,
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
             <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{t('config_management.visual.payload_rules.rule')} {ruleIndex + 1}</div>
             <Button variant="ghost" size="sm" onClick={() => removeRule(ruleIndex)} disabled={disabled}>
               {t('config_management.visual.common.delete')}
@@ -668,7 +728,7 @@ function PayloadFilterRulesEditor({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('config_management.visual.payload_rules.models')}</div>
             {rule.models.map((model, modelIndex) => (
-              <div key={model.id} style={{ display: 'grid', gridTemplateColumns: '1fr 160px auto', gap: 8 }}>
+              <div key={model.id} className={styles.payloadFilterModelRow}>
                 <input
                   className="input"
                   placeholder={t('config_management.visual.payload_rules.model_name')}
@@ -687,7 +747,13 @@ function PayloadFilterRulesEditor({
                     })
                   }
                 />
-                <Button variant="ghost" size="sm" onClick={() => removeModel(ruleIndex, modelIndex)} disabled={disabled}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={styles.payloadRowActionButton}
+                  onClick={() => removeModel(ruleIndex, modelIndex)}
+                  disabled={disabled}
+                >
                   {t('config_management.visual.common.delete')}
                 </Button>
               </div>
@@ -890,15 +956,6 @@ export function VisualConfigEditor({ values, disabled = false, onChange }: Visua
               value={values.logsMaxTotalSizeMb}
               onChange={(e) => onChange({ logsMaxTotalSizeMb: e.target.value })}
               disabled={disabled}
-            />
-            <Input
-              label={t('config_management.visual.sections.system.usage_retention_days')}
-              type="number"
-              placeholder="30"
-              value={values.usageRecordsRetentionDays}
-              onChange={(e) => onChange({ usageRecordsRetentionDays: e.target.value })}
-              disabled={disabled}
-              hint={t('config_management.visual.sections.system.usage_retention_hint')}
             />
           </SectionGrid>
         </div>

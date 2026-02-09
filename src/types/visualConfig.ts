@@ -10,7 +10,7 @@ export type PayloadParamEntry = {
 export type PayloadModelEntry = {
   id: string;
   name: string;
-  protocol?: 'openai' | 'gemini' | 'claude' | 'codex' | 'antigravity';
+  protocol?: 'openai' | 'openai-response' | 'gemini' | 'claude' | 'codex' | 'antigravity';
 };
 
 export type PayloadRule = {
@@ -48,7 +48,6 @@ export type VisualConfigValues = {
   loggingToFile: boolean;
   logsMaxTotalSizeMb: string;
   usageStatisticsEnabled: boolean;
-  usageRecordsRetentionDays: string;
   proxyUrl: string;
   forceModelPrefix: boolean;
   requestRetry: string;
@@ -85,7 +84,6 @@ export const DEFAULT_VISUAL_VALUES: VisualConfigValues = {
   loggingToFile: false,
   logsMaxTotalSizeMb: '',
   usageStatisticsEnabled: false,
-  usageRecordsRetentionDays: '',
   proxyUrl: '',
   forceModelPrefix: false,
   requestRetry: '',

@@ -5,6 +5,7 @@
 
 export type AuthFileType =
   | 'qwen'
+  | 'kimi'
   | 'gemini'
   | 'gemini-cli'
   | 'aistudio'
@@ -25,7 +26,7 @@ export interface AuthFileItem {
   runtimeOnly?: boolean | string;
   disabled?: boolean;
   modified?: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface AuthFilesResponse {
