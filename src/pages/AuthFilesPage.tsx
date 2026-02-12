@@ -174,6 +174,34 @@ const writeAuthFilesUiState = (state: AuthFilesUiState) => {
   }
 };
 
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // fallback below
+  }
+
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+};
+
 interface PrefixProxyEditorState {
   fileName: string;
   loading: boolean;
@@ -1024,14 +1052,28 @@ export function AuthFilesPage() {
     }
   };
 
+  const copyTextWithNotification = async (text: string) => {
+    const copied = await copyToClipboard(text);
+    showNotification(
+      copied
+        ? t('notification.link_copied', { defaultValue: 'Copied to clipboard' })
+        : t('notification.copy_failed', { defaultValue: 'Copy failed' }),
+      copied ? 'success' : 'error'
+    );
+  };
+
   // 检查模型是否被 OAuth 排除
   const isModelExcluded = (modelId: string, providerType: string): boolean => {
     const providerKey = normalizeProviderKey(providerType);
     const excludedModels = excluded[providerKey] || excluded[providerType] || [];
     return excludedModels.some((pattern) => {
       if (pattern.includes('*')) {
-        // 支持通配符匹配
-        const regex = new RegExp('^' + pattern.replace(/\*/g, '.*') + '$', 'i');
+        // 支持通配符匹配：先转义正则特殊字符，再将 * 视为通配符
+        const regexSafePattern = pattern
+          .split('*')
+          .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+          .join('.*');
+        const regex = new RegExp(`^${regexSafePattern}$`, 'i');
         return regex.test(modelId);
       }
       return pattern.toLowerCase() === modelId.toLowerCase();
@@ -2063,9 +2105,7 @@ export function AuthFilesPage() {
               onClick={() => {
                 if (selectedFile) {
                   const text = JSON.stringify(selectedFile, null, 2);
-                  navigator.clipboard.writeText(text).then(() => {
-                    showNotification(t('notification.link_copied'), 'success');
-                  });
+                  void copyTextWithNotification(text);
                 }
               }}
             >
@@ -2121,11 +2161,7 @@ export function AuthFilesPage() {
                   key={model.id}
                   className={`${styles.modelItem} ${isExcluded ? styles.modelItemExcluded : ''}`}
                   onClick={() => {
-                    navigator.clipboard.writeText(model.id);
-                    showNotification(
-                      t('notification.link_copied', { defaultValue: '已复制到剪贴板' }),
-                      'success'
-                    );
+                    void copyTextWithNotification(model.id);
                   }}
                   title={
                     isExcluded
