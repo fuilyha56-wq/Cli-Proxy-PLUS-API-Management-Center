@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Chart as ChartJS,
@@ -13,6 +13,7 @@ import {
 } from 'chart.js';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { IconChevronDown } from '@/components/ui/icons';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore } from '@/stores';
@@ -27,7 +28,13 @@ import {
   useSparklines,
   useChartData
 } from '@/components/usage';
-import { getModelNamesFromUsage, getApiStats, getModelStats } from '@/utils/usage';
+import {
+  getModelNamesFromUsage,
+  getApiStats,
+  getModelStats,
+  filterUsageByTimeRange,
+  type UsageTimeRange
+} from '@/utils/usage';
 import styles from './UsagePage.module.scss';
 
 // Register Chart.js components
@@ -41,6 +48,61 @@ ChartJS.register(
   Legend,
   Filler
 );
+
+const CHART_LINES_STORAGE_KEY = 'cli-proxy-usage-chart-lines-v1';
+const TIME_RANGE_STORAGE_KEY = 'cli-proxy-usage-time-range-v1';
+const DEFAULT_CHART_LINES = ['all'];
+const DEFAULT_TIME_RANGE: UsageTimeRange = '24h';
+const MAX_CHART_LINES = 9;
+const HOUR_WINDOW_BY_TIME_RANGE: Record<Exclude<UsageTimeRange, 'all'>, number> = {
+  '7h': 7,
+  '24h': 24,
+  '7d': 7 * 24
+};
+
+const isUsageTimeRange = (value: unknown): value is UsageTimeRange =>
+  value === '7h' || value === '24h' || value === '7d' || value === 'all';
+
+const normalizeChartLines = (value: unknown, maxLines = MAX_CHART_LINES): string[] => {
+  if (!Array.isArray(value)) {
+    return DEFAULT_CHART_LINES;
+  }
+
+  const filtered = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, maxLines);
+
+  return filtered.length ? filtered : DEFAULT_CHART_LINES;
+};
+
+const loadChartLines = (): string[] => {
+  try {
+    if (typeof localStorage === 'undefined') {
+      return DEFAULT_CHART_LINES;
+    }
+    const raw = localStorage.getItem(CHART_LINES_STORAGE_KEY);
+    if (!raw) {
+      return DEFAULT_CHART_LINES;
+    }
+    return normalizeChartLines(JSON.parse(raw));
+  } catch {
+    return DEFAULT_CHART_LINES;
+  }
+};
+
+const loadTimeRange = (): UsageTimeRange => {
+  try {
+    if (typeof localStorage === 'undefined') {
+      return DEFAULT_TIME_RANGE;
+    }
+    const raw = localStorage.getItem(TIME_RANGE_STORAGE_KEY);
+    return isUsageTimeRange(raw) ? raw : DEFAULT_TIME_RANGE;
+  } catch {
+    return DEFAULT_TIME_RANGE;
+  }
+};
 
 export function UsagePage() {
   const { t } = useTranslation();
@@ -67,8 +129,41 @@ export function UsagePage() {
   useHeaderRefresh(loadUsage);
 
   // Chart lines state
-  const [chartLines, setChartLines] = useState<string[]>(['all']);
-  const MAX_CHART_LINES = 9;
+  const [chartLines, setChartLines] = useState<string[]>(loadChartLines);
+  const [timeRange, setTimeRange] = useState<UsageTimeRange>(loadTimeRange);
+
+  const filteredUsage = useMemo(
+    () => (usage ? filterUsageByTimeRange(usage, timeRange) : null),
+    [usage, timeRange]
+  );
+  const hourWindowHours =
+    timeRange === 'all' ? undefined : HOUR_WINDOW_BY_TIME_RANGE[timeRange];
+
+  const handleChartLinesChange = useCallback((lines: string[]) => {
+    setChartLines(normalizeChartLines(lines));
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage === 'undefined') {
+        return;
+      }
+      localStorage.setItem(CHART_LINES_STORAGE_KEY, JSON.stringify(chartLines));
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [chartLines]);
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage === 'undefined') {
+        return;
+      }
+      localStorage.setItem(TIME_RANGE_STORAGE_KEY, timeRange);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, [timeRange]);
 
   // Sparklines hook
   const {
@@ -77,7 +172,7 @@ export function UsagePage() {
     rpmSparkline,
     tpmSparkline,
     costSparkline
-  } = useSparklines({ usage, loading });
+  } = useSparklines({ usage: filteredUsage, loading });
 
   // Chart data hook
   const {
@@ -89,12 +184,18 @@ export function UsagePage() {
     tokensChartData,
     requestsChartOptions,
     tokensChartOptions
-  } = useChartData({ usage, chartLines, isDark, isMobile });
+  } = useChartData({ usage: filteredUsage, chartLines, isDark, isMobile, hourWindowHours });
 
   // Derived data
   const modelNames = useMemo(() => getModelNamesFromUsage(usage), [usage]);
-  const apiStats = useMemo(() => getApiStats(usage, modelPrices), [usage, modelPrices]);
-  const modelStats = useMemo(() => getModelStats(usage, modelPrices), [usage, modelPrices]);
+  const apiStats = useMemo(
+    () => getApiStats(filteredUsage, modelPrices),
+    [filteredUsage, modelPrices]
+  );
+  const modelStats = useMemo(
+    () => getModelStats(filteredUsage, modelPrices),
+    [filteredUsage, modelPrices]
+  );
   const hasPrices = Object.keys(modelPrices).length > 0;
 
   return (
@@ -111,6 +212,24 @@ export function UsagePage() {
       <div className={styles.header}>
         <h1 className={styles.pageTitle}>{t('usage_stats.title')}</h1>
         <div className={styles.headerActions}>
+          <div className={styles.timeRangeGroup}>
+            <span className={styles.timeRangeLabel}>{t('usage_stats.range_filter')}</span>
+            <div className={styles.timeRangeSelectWrap}>
+              <select
+                value={timeRange}
+                onChange={(event) => setTimeRange(event.target.value as UsageTimeRange)}
+                className={`${styles.select} ${styles.timeRangeSelect}`}
+              >
+                <option value="all">{t('usage_stats.range_all')}</option>
+                <option value="7h">{t('usage_stats.range_7h')}</option>
+                <option value="24h">{t('usage_stats.range_24h')}</option>
+                <option value="7d">{t('usage_stats.range_7d')}</option>
+              </select>
+              <span className={styles.timeRangeSelectIcon} aria-hidden="true">
+                <IconChevronDown size={14} />
+              </span>
+            </div>
+          </div>
           <Button
             variant="secondary"
             size="sm"
@@ -151,7 +270,7 @@ export function UsagePage() {
 
       {/* Stats Overview Cards */}
       <StatCards
-        usage={usage}
+        usage={filteredUsage}
         loading={loading}
         modelPrices={modelPrices}
         sparklines={{
@@ -168,7 +287,7 @@ export function UsagePage() {
         chartLines={chartLines}
         modelNames={modelNames}
         maxLines={MAX_CHART_LINES}
-        onChange={setChartLines}
+        onChange={handleChartLinesChange}
       />
 
       {/* Charts Grid */}
