@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { IconBot, IconCode, IconDownload, IconInfo, IconTrash2 } from '@/components/ui/icons';
+import { IconBot, IconCheck, IconCode, IconDownload, IconInfo, IconTrash2 } from '@/components/ui/icons';
 import { ProviderStatusBar } from '@/components/providers/ProviderStatusBar';
 import type { AuthFileItem } from '@/types';
 import { resolveAuthProvider } from '@/utils/quota';
@@ -25,6 +25,7 @@ import styles from '@/pages/AuthFilesPage.module.scss';
 
 export type AuthFileCardProps = {
   file: AuthFileItem;
+  selected: boolean;
   resolvedTheme: ResolvedTheme;
   disableControls: boolean;
   deleting: string | null;
@@ -38,6 +39,7 @@ export type AuthFileCardProps = {
   onOpenPrefixProxyEditor: (name: string) => void;
   onDelete: (name: string) => void;
   onToggleStatus: (file: AuthFileItem, enabled: boolean) => void;
+  onToggleSelect: (name: string) => void;
 };
 
 const resolveQuotaType = (file: AuthFileItem): QuotaProviderType | null => {
@@ -50,6 +52,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
   const { t } = useTranslation();
   const {
     file,
+    selected,
     resolvedTheme,
     disableControls,
     deleting,
@@ -62,7 +65,8 @@ export function AuthFileCard(props: AuthFileCardProps) {
     onDownload,
     onOpenPrefixProxyEditor,
     onDelete,
-    onToggleStatus
+    onToggleStatus,
+    onToggleSelect
   } = props;
 
   const fileStats = resolveAuthFileStats(file, keyStats);
@@ -94,11 +98,23 @@ export function AuthFileCard(props: AuthFileCardProps) {
 
   return (
     <div
-      className={`${styles.fileCard} ${providerCardClass} ${file.disabled ? styles.fileCardDisabled : ''}`}
+      className={`${styles.fileCard} ${providerCardClass} ${selected ? styles.fileCardSelected : ''} ${file.disabled ? styles.fileCardDisabled : ''}`}
     >
       <div className={styles.fileCardLayout}>
         <div className={styles.fileCardMain}>
           <div className={styles.cardHeader}>
+            {!isRuntimeOnly && (
+              <button
+                type="button"
+                className={`${styles.selectionToggle} ${selected ? styles.selectionToggleActive : ''}`}
+                onClick={() => onToggleSelect(file.name)}
+                aria-label={selected ? t('auth_files.batch_deselect') : t('auth_files.batch_select_all')}
+                aria-pressed={selected}
+                title={selected ? t('auth_files.batch_deselect') : t('auth_files.batch_select_all')}
+              >
+                {selected && <IconCheck size={12} />}
+              </button>
+            )}
             <span
               className={styles.typeBadge}
               style={{
