@@ -382,7 +382,7 @@ export function OAuthPage() {
       const response = await fetch(`${baseUrl}/v0/oauth/kiro/import`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
+        body: JSON.stringify({ refreshToken: token })
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
