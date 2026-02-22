@@ -5,11 +5,13 @@ import {
   computeKeyStats,
   collectUsageDetails,
   buildCandidateUsageSourceIds,
-  formatCompactNumber
+  formatCompactNumber,
+  normalizeAuthIndex
 } from '@/utils/usage';
 import { authFilesApi } from '@/services/api/authFiles';
 import type { GeminiKeyConfig, ProviderKeyConfig, OpenAIProviderConfig } from '@/types';
 import type { AuthFileItem } from '@/types/authFile';
+import type { CredentialInfo } from '@/types/sourceInfo';
 import type { UsagePayload } from './hooks/useUsageData';
 import styles from '@/pages/UsagePage.module.scss';
 
@@ -21,11 +23,6 @@ export interface CredentialStatsCardProps {
   codexConfigs: ProviderKeyConfig[];
   vertexConfigs: ProviderKeyConfig[];
   openaiProviders: OpenAIProviderConfig[];
-}
-
-interface CredentialInfo {
-  name: string;
-  type: string;
 }
 
 interface CredentialRow {
@@ -41,17 +38,6 @@ interface CredentialRow {
 interface CredentialBucket {
   success: number;
   failure: number;
-}
-
-function normalizeAuthIndexValue(value: unknown): string | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value.toString();
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed || null;
-  }
-  return null;
 }
 
 export function CredentialStatsCard({
@@ -78,7 +64,7 @@ export function CredentialStatsCard({
         const map = new Map<string, CredentialInfo>();
         files.forEach((file) => {
           const rawAuthIndex = file['auth_index'] ?? file.authIndex;
-          const key = normalizeAuthIndexValue(rawAuthIndex);
+          const key = normalizeAuthIndex(rawAuthIndex);
           if (key) {
             map.set(key, {
               name: file.name || key,
@@ -195,7 +181,7 @@ export function CredentialStatsCard({
     // Also collect fallback stats for details without source but with auth_index.
     const sourceToAuthFile = new Map<string, CredentialInfo>();
     details.forEach((d) => {
-      const authIdx = normalizeAuthIndexValue(d.auth_index);
+      const authIdx = normalizeAuthIndex(d.auth_index);
       if (!d.source) {
         if (!authIdx) return;
         const fallback = fallbackByAuthIndex.get(authIdx) ?? { success: 0, failure: 0 };
