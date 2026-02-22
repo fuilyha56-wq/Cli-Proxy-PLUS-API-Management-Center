@@ -616,6 +616,10 @@
     margin-bottom: 0;
   }
 
+  .modelConfigSection {
+    margin-bottom: 0;
+  }
+
   :global(.status-badge) {
     margin-bottom: 0;
     align-self: flex-start;
@@ -669,17 +673,17 @@
 }
 
 .modelConfigSection {
-  margin-bottom: 0;
+  margin-bottom: $spacing-md;
   display: flex;
   flex-direction: column;
-  gap: $spacing-md;
+  gap: $spacing-sm;
 }
 
 .modelConfigHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: $spacing-md;
+  gap: $spacing-sm;
   flex-wrap: wrap;
 
   @include mobile {
@@ -691,7 +695,6 @@
   margin: 0;
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
   line-height: 1.5;
 }
 
