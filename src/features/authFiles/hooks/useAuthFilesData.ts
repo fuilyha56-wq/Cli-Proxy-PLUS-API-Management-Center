@@ -14,6 +14,13 @@ type DeleteAllOptions = {
   onResetFilterToAll: () => void;
 };
 
+/** 上传失败的凭证文件记录 */
+export interface FailedUpload {
+  name: string;
+  message: string;
+  file: File;
+}
+
 export type UseAuthFilesDataResult = {
   files: AuthFileItem[];
   selectedFiles: Set<string>;
@@ -25,9 +32,15 @@ export type UseAuthFilesDataResult = {
   deletingAll: boolean;
   statusUpdating: Record<string, boolean>;
   fileInputRef: RefObject<HTMLInputElement | null>;
+  /** 上传失败的文件列表（含原始 File 引用，用于重试） */
+  failedUploads: FailedUpload[];
   loadFiles: () => Promise<void>;
   handleUploadClick: () => void;
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  /** 重试所有失败的上传 */
+  retryFailedUploads: () => Promise<void>;
+  /** 清空失败上传列表 */
+  clearFailedUploads: () => void;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
@@ -56,6 +69,10 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [deletingAll, setDeletingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [failedUploads, setFailedUploads] = useState<FailedUpload[]>([]);
+
+  // 重试函数引用，避免 handleFileChange 与 retryFailedUploads 之间的循环依赖
+  const retryFailedUploadsRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectionCount = selectedFiles.size;
@@ -157,7 +174,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
 
       setUploading(true);
       let successCount = 0;
-      const failed: { name: string; message: string }[] = [];
+      const failed: FailedUpload[] = [];
 
       for (const file of validFiles) {
         try {
@@ -165,7 +182,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           successCount++;
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          failed.push({ name: file.name, message: errorMessage });
+          failed.push({ name: file.name, message: errorMessage, file });
         }
       }
 
@@ -180,15 +197,75 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       }
 
       if (failed.length > 0) {
+        setFailedUploads(failed);
         const details = failed.map((item) => `${item.name}: ${item.message}`).join('; ');
-        showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
+        // 失败时弹出确认框，提供「重试」与「手动编辑」入口
+        showConfirmation({
+          title: t('auth_files.upload_failed_title', { defaultValue: 'Upload Failed' }),
+          message: `${t('auth_files.upload_failed_message', {
+            count: failed.length,
+            defaultValue: `${failed.length} file(s) failed`,
+          })}\n${details}\n${t('auth_files.upload_failed_hint', {
+            defaultValue: 'You can retry or manually edit the fields after uploading.',
+          })}`,
+          variant: 'danger',
+          confirmText: t('auth_files.retry_upload', { defaultValue: 'Retry' }),
+          cancelText: t('common.dismiss', { defaultValue: 'Dismiss' }),
+          onConfirm: async () => {
+            await retryFailedUploadsRef.current();
+          },
+        });
       }
 
       setUploading(false);
       event.target.value = '';
     },
-    [loadFiles, refreshKeyStats, showNotification, t]
+    [loadFiles, refreshKeyStats, showNotification, showConfirmation, t]
   );
+
+  /** 重试所有失败的上传 */
+  const retryFailedUploads = useCallback(async () => {
+    if (failedUploads.length === 0) return;
+    setUploading(true);
+    let successCount = 0;
+    const stillFailed: FailedUpload[] = [];
+
+    for (const item of failedUploads) {
+      try {
+        await authFilesApi.upload(item.file);
+        successCount++;
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        stillFailed.push({ ...item, message: errorMessage });
+      }
+    }
+
+    if (successCount > 0) {
+      showNotification(
+        `${t('auth_files.upload_success')} (${successCount}/${failedUploads.length})`,
+        stillFailed.length ? 'warning' : 'success'
+      );
+      await loadFiles();
+      await refreshKeyStats();
+    }
+
+    setFailedUploads(stillFailed);
+
+    if (stillFailed.length > 0) {
+      const details = stillFailed.map((item) => `${item.name}: ${item.message}`).join('; ');
+      showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
+    }
+
+    setUploading(false);
+  }, [failedUploads, loadFiles, refreshKeyStats, showNotification, t]);
+
+  // 保持 ref 始终指向最新的 retryFailedUploads
+  retryFailedUploadsRef.current = retryFailedUploads;
+
+  /** 清空失败上传列表 */
+  const clearFailedUploads = useCallback(() => {
+    setFailedUploads([]);
+  }, []);
 
   const handleDelete = useCallback(
     (name: string) => {
@@ -499,9 +576,12 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     deletingAll,
     statusUpdating,
     fileInputRef,
+    failedUploads,
     loadFiles,
     handleUploadClick,
     handleFileChange,
+    retryFailedUploads,
+    clearFailedUploads,
     handleDelete,
     handleDeleteAll,
     handleDownload,

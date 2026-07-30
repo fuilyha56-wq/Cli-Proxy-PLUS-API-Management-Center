@@ -82,9 +82,12 @@ export function AuthFilesPage() {
     deletingAll,
     statusUpdating,
     fileInputRef,
+    failedUploads,
     loadFiles,
     handleUploadClick,
     handleFileChange,
+    retryFailedUploads,
+    clearFailedUploads,
     handleDelete,
     handleDeleteAll,
     handleDownload,
@@ -473,6 +476,45 @@ export function AuthFilesPage() {
         }
       >
         {error && <div className={styles.errorBox}>{error}</div>}
+
+        {failedUploads.length > 0 && (
+          <div className={styles.errorBox}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div>
+                {t('auth_files.upload_failed_banner', {
+                  count: failedUploads.length,
+                  defaultValue: `${failedUploads.length} file(s) failed to upload`,
+                })}
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, maxHeight: 96, overflowY: 'auto' }}>
+                {failedUploads.map((item) => (
+                  <li key={item.name}>
+                    <strong>{item.name}</strong>: {item.message}
+                  </li>
+                ))}
+              </ul>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void retryFailedUploads()}
+                  disabled={disableControls || uploading}
+                  loading={uploading}
+                >
+                  {t('auth_files.retry_upload', { defaultValue: 'Retry' })}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFailedUploads}
+                  disabled={uploading}
+                >
+                  {t('common.dismiss', { defaultValue: 'Dismiss' })}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={styles.filterSection}>
           {renderFilterTags()}
