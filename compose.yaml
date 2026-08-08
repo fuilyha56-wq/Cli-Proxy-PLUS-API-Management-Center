@@ -1,0 +1,14 @@
+services:
+  management-center:
+    build:
+      context: .
+      args:
+        VERSION: ${VERSION:-docker}
+    image: cli-proxy-api-management-center:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8317}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${WEB_PORT:-10086}:80"

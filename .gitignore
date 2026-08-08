@@ -36,3 +36,7 @@ tmpclaude*
 .claude
 CLIProxyAPI
 example
+
+# Environment (contains secrets)
+.env
+*.env

@@ -37,6 +37,39 @@ After configuration, restart the CLI Proxy API service and visit `http://<host>:
 
 For detailed configuration instructions, please refer to the official documentation: https://help.router-for.me/cn/management/webui.html
 
+### Docker deployment
+
+The Docker image contains only the management frontend. Run the CLI Proxy API server separately.
+
+```bash
+docker compose up -d --build
+```
+
+By default, the container proxies `/v0/management` to `http://host.docker.internal:8317` on the host, avoiding browser CORS issues. Open `http://localhost:8080`, enter `http://localhost:8080` as the API address on the login page, then enter the management key.
+
+You can customize the published port, API upstream, and image tag with environment variables:
+
+```bash
+WEB_PORT=3000 API_UPSTREAM=http://192.168.1.10:8317 IMAGE_TAG=1.1.7 docker compose up -d --build
+```
+
+Windows PowerShell example:
+
+```powershell
+$env:WEB_PORT = "3000"
+$env:API_UPSTREAM = "http://192.168.1.10:8317"
+docker compose up -d --build
+```
+
+Check the container status and logs with:
+
+```bash
+docker compose ps
+docker compose logs -f management-center
+```
+
+`API_UPSTREAM` must be a CLI Proxy API root address reachable from the container; do not append `/v0/management`. If you bypass the built-in proxy by entering another API address directly on the login page, enable `allow-remote-management: true` in the API configuration and configure CORS/firewall rules as needed. Enter the management key only on the login page; do not bake it into the image or Compose file.
+
 ---
 
 ## Main Features

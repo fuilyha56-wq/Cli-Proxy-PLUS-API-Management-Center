@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+.idea
+node_modules
+dist
+coverage
+*.log
+*.local
+dashboard-preview.png
+README*.md
+

@@ -37,6 +37,39 @@ remote-management:
 
 详细配置说明请参考官方文档：https://help.router-for.me/cn/management/webui.html
 
+### Docker 部署
+
+本仓库的 Docker 镜像只包含管理中心前端，CLI Proxy API 主程序需要单独运行。
+
+```bash
+docker compose up -d --build
+```
+
+默认情况下，容器会把 `/v0/management` 反向代理到宿主机的 `http://host.docker.internal:8317`，以避免浏览器跨域问题。启动后访问 `http://localhost:8080`，登录页的 API 地址填写 `http://localhost:8080`，再输入管理密钥即可。
+
+可以通过环境变量修改对外端口、API 上游地址和镜像标签：
+
+```bash
+WEB_PORT=3000 API_UPSTREAM=http://192.168.1.10:8317 IMAGE_TAG=1.1.7 docker compose up -d --build
+```
+
+Windows PowerShell 示例：
+
+```powershell
+$env:WEB_PORT = "3000"
+$env:API_UPSTREAM = "http://192.168.1.10:8317"
+docker compose up -d --build
+```
+
+查看运行状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f management-center
+```
+
+`API_UPSTREAM` 必须是容器能够访问的 CLI Proxy API 根地址，不要包含 `/v0/management`。如果绕过内置反向代理、直接在登录页填写其他 API 地址，请确认 API 配置中已启用 `allow-remote-management: true`，并正确配置 CORS/防火墙规则。管理密钥只在登录页输入，不要写入镜像或 Compose 文件。
+
 ---
 
 ## 主要功能
