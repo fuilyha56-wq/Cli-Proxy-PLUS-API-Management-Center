@@ -39,6 +39,27 @@ example
 .rsh.py
 .rsh_run.py
 
+# Temporary deployment/admin scripts (SSH, probes, one-off fixes)
+_*.py
+*_check*.py
+*_deploy*.py
+*_fix*.py
+*_clean*.py
+*_probe*.py
+*_test*.py
+*_verify*.py
+*_poll*.py
+*_reproduce*.py
+*_trigger*.py
+*_copy*.py
+*_submit*.py
+*_start*.py
+*_debug*.py
+*_install*.py
+*_recreate*.py
+*_poll*.py
+
 # Environment (contains secrets)
 .env
 *.env
+!*.env.example
