@@ -96,14 +96,30 @@ export function resolveGeminiCliProjectId(file: AuthFileItem): string | null {
       ? (file.attributes as Record<string, unknown>)
       : null;
 
-  const candidates = [
+  // 1. 直接读取 API 返回的 project_id 独立字段（首选）
+  const directCandidates = [
+    file.project_id,
+    file.projectId,
+    file['project_id'],
+    file['projectId'],
+    metadata?.project_id,
+    metadata?.projectId,
+    attributes?.project_id,
+    attributes?.projectId
+  ];
+  for (const candidate of directCandidates) {
+    const normalized = normalizeStringValue(candidate);
+    if (normalized) return normalized;
+  }
+
+  // 2. 从 account 字段的括号中解析（兼容旧格式，如 "email (project-id)"）
+  const accountCandidates = [
     file.account,
     file['account'],
     metadata?.account,
     attributes?.account
   ];
-
-  for (const candidate of candidates) {
+  for (const candidate of accountCandidates) {
     const projectId = extractGeminiCliProjectId(candidate);
     if (projectId) return projectId;
   }
