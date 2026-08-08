@@ -568,7 +568,9 @@
     "missing_auth_index": "В файле авторизации отсутствует auth_index",
     "empty_models": "Данные по квоте отсутствуют",
     "refresh_button": "Обновить квоту",
-    "fetch_all": "Получить все"
+    "fetch_all": "Получить все",
+    "show_all_models": "Показать все модели",
+    "ungrouped": "Без группы"
   },
   "claude_quota": {
     "title": "Квота Claude",

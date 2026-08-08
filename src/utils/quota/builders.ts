@@ -3,6 +3,7 @@
  */
 
 import type {
+  AntigravityModelDetail,
   AntigravityQuotaGroup,
   AntigravityQuotaGroupDefinition,
   AntigravityQuotaInfo,
@@ -259,4 +260,30 @@ export function buildAntigravityQuotaGroups(
   }
 
   return groups;
+}
+
+/**
+ * 构建 Antigravity 账号下全部模型的明细列表（含未分组的模型）。
+ */
+export function buildAntigravityModelDetails(
+  models: AntigravityModelsPayload,
+  groups: AntigravityQuotaGroup[]
+): AntigravityModelDetail[] {
+  const groupIdByModel = new Map<string, string>();
+  groups.forEach((group) => {
+    group.models.forEach((modelId) => {
+      groupIdByModel.set(modelId, group.id);
+    });
+  });
+
+  return Object.entries(models).map(([id, entry]) => {
+    const info = getAntigravityQuotaInfo(entry);
+    return {
+      id,
+      displayName: info.displayName,
+      remainingFraction: info.remainingFraction,
+      resetTime: info.resetTime,
+      groupId: groupIdByModel.get(id),
+    };
+  });
 }

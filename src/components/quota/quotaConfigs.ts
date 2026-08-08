@@ -6,6 +6,7 @@ import React from 'react';
 import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import type {
+  AntigravityModelDetail,
   AntigravityQuotaGroup,
   AntigravityModelsPayload,
   AntigravityQuotaState,
@@ -62,6 +63,7 @@ import {
   formatCodexResetLabel,
   formatQuotaResetTime,
   buildAntigravityQuotaGroups,
+  buildAntigravityModelDetails,
   buildGeminiCliQuotaBuckets,
   createStatusError,
   getStatusFromError,
@@ -153,7 +155,7 @@ const resolveAntigravityProjectId = async (file: AuthFileItem): Promise<string> 
 const fetchAntigravityQuota = async (
   file: AuthFileItem,
   t: TFunction
-): Promise<AntigravityQuotaGroup[]> => {
+): Promise<{ groups: AntigravityQuotaGroup[]; allModels: AntigravityModelDetail[] }> => {
   const rawAuthIndex = file['auth_index'] ?? file.authIndex;
   const authIndex = normalizeAuthIndex(rawAuthIndex);
   if (!authIndex) {
@@ -196,12 +198,11 @@ const fetchAntigravityQuota = async (
       }
 
       const groups = buildAntigravityQuotaGroups(models as AntigravityModelsPayload);
-      if (groups.length === 0) {
-        lastError = t('antigravity_quota.empty_models');
-        continue;
-      }
-
-      return groups;
+      const allModels = buildAntigravityModelDetails(
+        models as AntigravityModelsPayload,
+        groups
+      );
+      return { groups, allModels };
     } catch (err: unknown) {
       lastError = err instanceof Error ? err.message : t('common.unknown_error');
       const status = getStatusFromError(err);
@@ -215,7 +216,7 @@ const fetchAntigravityQuota = async (
   }
 
   if (hadSuccess) {
-    return [];
+    return { groups: [], allModels: [] };
   }
 
   throw createStatusError(lastError || t('common.unknown_error'), priorityStatus ?? lastStatus);
@@ -676,12 +677,13 @@ const renderAntigravityItems = (
   const { styles: styleMap, QuotaProgressBar } = helpers;
   const { createElement: h } = React;
   const groups = quota.groups ?? [];
+  const allModels = quota.allModels ?? [];
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && allModels.length === 0) {
     return h('div', { className: styleMap.quotaMessage }, t('antigravity_quota.empty_models'));
   }
 
-  return groups.map((group) => {
+  const groupNodes = groups.map((group) => {
     const clamped = Math.max(0, Math.min(1, group.remainingFraction));
     const percent = Math.round(clamped * 100);
     const resetLabel = formatQuotaResetTime(group.resetTime);
@@ -703,6 +705,56 @@ const renderAntigravityItems = (
       h(QuotaProgressBar, { percent, highThreshold: 60, mediumThreshold: 20 })
     );
   });
+
+  // 全部模型明细（点击展开）
+  let allModelsNode: ReactNode = null;
+  if (allModels.length > 0) {
+    const detailRows = allModels
+      .slice()
+      .sort((a, b) => (a.groupId ?? '').localeCompare(b.groupId ?? ''))
+      .map((model) => {
+        const fraction = model.remainingFraction;
+        const modelPercent = fraction === null ? null : Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+        const modelReset = formatQuotaResetTime(model.resetTime);
+        const modelLabel = model.displayName && model.displayName !== model.id ? model.displayName : model.id;
+        const groupTag = model.groupId
+          ? h('span', { className: styleMap.quotaModelGroup }, model.groupId)
+          : h('span', { className: styleMap.quotaModelGroupUngrouped }, t('antigravity_quota.ungrouped'));
+
+        return h(
+          'div',
+          { key: model.id, className: styleMap.quotaModelDetail },
+          h(
+            'div',
+            { className: styleMap.quotaModelDetailHeader },
+            h('span', { className: styleMap.quotaModelDetailName, title: model.id }, modelLabel),
+            groupTag,
+            h(
+              'div',
+              { className: styleMap.quotaMeta },
+              h('span', { className: styleMap.quotaPercent }, modelPercent === null ? '--' : `${modelPercent}%`),
+              h('span', { className: styleMap.quotaReset }, modelReset)
+            )
+          ),
+          modelPercent === null
+            ? null
+            : h(QuotaProgressBar, { percent: modelPercent, highThreshold: 60, mediumThreshold: 20 })
+        );
+      });
+
+    allModelsNode = h(
+      'details',
+      { className: styleMap.quotaAllModels },
+      h(
+        'summary',
+        { className: styleMap.quotaAllModelsSummary },
+        `${t('antigravity_quota.show_all_models')} (${allModels.length})`
+      ),
+      h('div', { className: styleMap.quotaAllModelsBody }, ...detailRows)
+    );
+  }
+
+  return h(React.Fragment, null, ...groupNodes, allModelsNode);
 };
 
 const renderCodexItems = (
@@ -1127,7 +1179,10 @@ export const CLAUDE_CONFIG: QuotaConfig<
   renderQuotaItems: renderClaudeItems,
 };
 
-export const ANTIGRAVITY_CONFIG: QuotaConfig<AntigravityQuotaState, AntigravityQuotaGroup[]> = {
+export const ANTIGRAVITY_CONFIG: QuotaConfig<
+  AntigravityQuotaState,
+  { groups: AntigravityQuotaGroup[]; allModels: AntigravityModelDetail[] }
+> = {
   type: 'antigravity',
   i18nPrefix: 'antigravity_quota',
   cardIdleMessageKey: 'quota_management.card_idle_hint',
@@ -1136,7 +1191,11 @@ export const ANTIGRAVITY_CONFIG: QuotaConfig<AntigravityQuotaState, AntigravityQ
   storeSelector: (state) => state.antigravityQuota,
   storeSetter: 'setAntigravityQuota',
   buildLoadingState: () => ({ status: 'loading', groups: [] }),
-  buildSuccessState: (groups) => ({ status: 'success', groups }),
+  buildSuccessState: ({ groups, allModels }) => ({
+    status: 'success',
+    groups,
+    allModels,
+  }),
   buildErrorState: (message, status) => ({
     status: 'error',
     groups: [],

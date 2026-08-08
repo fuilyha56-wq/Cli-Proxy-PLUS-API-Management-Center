@@ -149,6 +149,14 @@ export interface ClaudeQuotaState {
 }
 
 // Quota state types
+export interface AntigravityModelDetail {
+  id: string;
+  displayName?: string;
+  remainingFraction: number | null;
+  resetTime?: string;
+  groupId?: string;
+}
+
 export interface AntigravityQuotaGroup {
   id: string;
   label: string;
@@ -160,6 +168,7 @@ export interface AntigravityQuotaGroup {
 export interface AntigravityQuotaState {
   status: 'idle' | 'loading' | 'success' | 'error';
   groups: AntigravityQuotaGroup[];
+  allModels?: AntigravityModelDetail[];
   error?: string;
   errorStatus?: number;
 }
