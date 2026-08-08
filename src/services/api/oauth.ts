@@ -34,7 +34,7 @@ export interface IFlowCookieAuthResponse {
 
 const WEBUI_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'gemini-cli', 'github-copilot'];
 const CALLBACK_PROVIDER_MAP: Partial<Record<OAuthProvider, string>> = {
-  'gemini-cli': 'gemini',
+  // gemini-cli 插件注册的 OAuth 会话 provider 就是 "gemini-cli"，不能映射成 "gemini"
   'github-copilot': 'github'
 };
 
