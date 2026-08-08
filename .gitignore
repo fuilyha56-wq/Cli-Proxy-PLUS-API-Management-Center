@@ -36,6 +36,8 @@ tmpclaude*
 .claude
 CLIProxyAPI
 example
+.rsh.py
+.rsh_run.py
 
 # Environment (contains secrets)
 .env
