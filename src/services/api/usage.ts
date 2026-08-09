@@ -4,8 +4,35 @@
 
 import { apiClient } from './client';
 import { computeKeyStats, KeyStats } from '@/utils/usage';
+import type { ApiError } from '@/types';
 
 const USAGE_TIMEOUT_MS = 60 * 1000;
+const EMPTY_USAGE: Record<string, unknown> = {
+  total_requests: 0,
+  success_count: 0,
+  failure_count: 0,
+  total_tokens: 0,
+  apis: {}
+};
+
+const isUsageRouteMissing = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const response = (error as { response?: { status?: unknown } }).response;
+  const { status, statusCode } = error as ApiError & { statusCode?: unknown };
+  return status === 404 || statusCode === 404 || response?.status === 404;
+};
+
+const getUsage = async (): Promise<Record<string, unknown>> => {
+  try {
+    return await apiClient.get<Record<string, unknown>>('/usage', { timeout: USAGE_TIMEOUT_MS });
+  } catch (error: unknown) {
+    // CLI Proxy API v7.2.124 does not expose detailed /usage data.
+    if (isUsageRouteMissing(error)) {
+      return { ...EMPTY_USAGE, apis: {} };
+    }
+    throw error;
+  }
+};
 
 export interface UsageExportPayload {
   version?: number;
@@ -26,7 +53,7 @@ export const usageApi = {
   /**
    * 获取使用统计原始数据
    */
-  getUsage: () => apiClient.get<Record<string, unknown>>('/usage', { timeout: USAGE_TIMEOUT_MS }),
+  getUsage,
 
   /**
    * 导出使用统计快照
@@ -45,7 +72,7 @@ export const usageApi = {
   async getKeyStats(usageData?: unknown): Promise<KeyStats> {
     let payload = usageData;
     if (!payload) {
-      const response = await apiClient.get<Record<string, unknown>>('/usage', { timeout: USAGE_TIMEOUT_MS });
+      const response = await getUsage();
       payload = response?.usage ?? response;
     }
     return computeKeyStats(payload);
