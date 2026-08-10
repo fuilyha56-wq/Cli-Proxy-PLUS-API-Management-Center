@@ -8,3 +8,5 @@ export * from './resolvers';
 export * from './formatters';
 export * from './validators';
 export * from './builders';
+export * from './geminiCliDiagnostics';
+export * from './geminiCliOAuth';

@@ -20,6 +20,9 @@ dist
 dist-ssr
 *.local
 skills
+__pycache__/
+*.pyc
+.cache/
 
 # Editor directories and files
 settings.local.json
@@ -38,6 +41,10 @@ CLIProxyAPI
 example
 .rsh.py
 .rsh_run.py
+
+# 本地敏感/临时文件（含 OAuth 授权 URL、二维码等）
+_gemini_oauth_url.txt
+qr.png
 
 # Temporary deployment/admin scripts (SSH, probes, one-off fixes)
 _*.py

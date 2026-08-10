@@ -625,6 +625,8 @@
     "load_failed": "Не удалось загрузить квоту: {{message}}",
     "missing_auth_index": "В файле авторизации отсутствует auth_index",
     "missing_project_id": "В учётных данных Gemini CLI отсутствует идентификатор проекта",
+    "unsupported_client": "Проверка доступности Google пометила эти учётные данные как UNSUPPORTED_CLIENT и рекомендует перейти на Antigravity. Это не означает прекращение поддержки официального Gemini CLI. Сообщение сервера: {{message}}",
+    "management_auth_failed": "Ошибка авторизации квоты Gemini CLI (401), и центру управления не удалось обновить токен с помощью refresh token из файла учётных данных. Повторите вход через Gemini CLI OAuth или проверьте действительность refresh token.",
     "empty_buckets": "Данные по квоте отсутствуют",
     "refresh_button": "Обновить квоту",
     "fetch_all": "Получить все",

@@ -632,6 +632,8 @@
     "load_failed": "Failed to load quota: {{message}}",
     "missing_auth_index": "Auth file missing auth_index",
     "missing_project_id": "Gemini CLI credential missing project ID",
+    "unsupported_client": "Google's eligibility check marked this credential as UNSUPPORTED_CLIENT and recommends migrating to Antigravity. This does not mean the official Gemini CLI has been discontinued. Upstream message: {{message}}",
+    "management_auth_failed": "Gemini CLI quota authentication failed (401), and the management center could not renew it with the refresh token in the credential file. Sign in with Gemini CLI OAuth again or verify that the refresh token is still valid.",
     "empty_buckets": "No quota data available",
     "refresh_button": "Refresh Quota",
     "fetch_all": "Fetch All",

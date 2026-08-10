@@ -37,6 +37,7 @@ import {
   CLAUDE_USAGE_WINDOW_KEYS,
   CODEX_USAGE_URL,
   CODEX_REQUEST_HEADERS,
+  GEMINI_CLI_LOAD_CODE_ASSIST_URL,
   GEMINI_CLI_QUOTA_URL,
   GEMINI_CLI_REQUEST_HEADERS,
   KIRO_QUOTA_URL,
@@ -66,7 +67,9 @@ import {
   buildAntigravityModelDetails,
   buildGeminiCliQuotaBuckets,
   createStatusError,
+  getGeminiCliQuotaCompatibilityIssue,
   getStatusFromError,
+  refreshGeminiCliAccessToken,
   isAntigravityFile,
   isClaudeFile,
   isCodexFile,
@@ -450,15 +453,82 @@ const fetchGeminiCliQuota = async (
     throw new Error(t('gemini_cli_quota.missing_project_id'));
   }
 
-  const result = await apiCallApi.request({
-    authIndex,
-    method: 'POST',
-    url: GEMINI_CLI_QUOTA_URL,
-    header: { ...GEMINI_CLI_REQUEST_HEADERS },
-    data: JSON.stringify({ project: projectId }),
-  });
+  const requestBody = JSON.stringify({ project: projectId });
+  let requestHeaders = { ...GEMINI_CLI_REQUEST_HEADERS };
+  const requestQuota = () =>
+    apiCallApi.request({
+      authIndex,
+      method: 'POST',
+      url: GEMINI_CLI_QUOTA_URL,
+      header: requestHeaders,
+      data: requestBody,
+    });
+
+  let result = await requestQuota();
+  if (result.statusCode === 401) {
+    try {
+      const credentialText = await authFilesApi.downloadText(file.name);
+      const accessToken = await refreshGeminiCliAccessToken(
+        credentialText,
+        authIndex,
+        apiCallApi.request
+      );
+      if (accessToken) {
+        requestHeaders = {
+          ...GEMINI_CLI_REQUEST_HEADERS,
+          Authorization: `Bearer ${accessToken}`,
+        };
+        result = await requestQuota();
+      }
+    } catch {
+      // Keep the original authentication error when OAuth refresh is unavailable.
+    }
+  }
 
   if (result.statusCode < 200 || result.statusCode >= 300) {
+    let diagnosticStatusCode: number | null = null;
+    let diagnosticPayload: unknown = null;
+
+    if (result.statusCode === 429) {
+      try {
+        const diagnosticResult = await apiCallApi.request({
+          authIndex,
+          method: 'POST',
+          url: GEMINI_CLI_LOAD_CODE_ASSIST_URL,
+          header: requestHeaders,
+          data: JSON.stringify({
+            cloudaicompanionProject: projectId,
+            metadata: {
+              ideType: 'IDE_UNSPECIFIED',
+              platform: 'PLATFORM_UNSPECIFIED',
+              pluginType: 'GEMINI',
+              duetProject: projectId,
+            },
+          }),
+        });
+
+        diagnosticStatusCode = diagnosticResult.statusCode;
+        diagnosticPayload = diagnosticResult.body ?? diagnosticResult.bodyText;
+      } catch {
+        // Preserve the original quota error if the diagnostic request fails.
+      }
+    }
+
+    const compatibilityIssue = getGeminiCliQuotaCompatibilityIssue(
+      result.statusCode,
+      diagnosticStatusCode,
+      diagnosticPayload
+    );
+    if (compatibilityIssue?.kind === 'unsupported-client') {
+      throw createStatusError(
+        t('gemini_cli_quota.unsupported_client', { message: compatibilityIssue.message }),
+        result.statusCode
+      );
+    }
+    if (compatibilityIssue?.kind === 'management-auth-failed') {
+      throw createStatusError(t('gemini_cli_quota.management_auth_failed'), result.statusCode);
+    }
+
     throw createStatusError(getApiCallErrorMessage(result), result.statusCode);
   }
 

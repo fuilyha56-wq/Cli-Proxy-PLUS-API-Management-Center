@@ -632,6 +632,8 @@
     "load_failed": "额度获取失败：{{message}}",
     "missing_auth_index": "认证文件缺少 auth_index",
     "missing_project_id": "Gemini CLI 凭证缺少 Project ID",
+    "unsupported_client": "Google 的资格检查将此凭据标记为 UNSUPPORTED_CLIENT，并建议迁移到 Antigravity；这不表示官方 Gemini CLI 已停止服务。上游说明：{{message}}",
+    "management_auth_failed": "Gemini CLI 配额鉴权失败（401），且管理中心未能使用认证文件中的 refresh token 自动续期。请重新进行 Gemini CLI OAuth 登录，或确认 refresh token 仍有效。",
     "empty_buckets": "暂无额度数据",
     "refresh_button": "刷新额度",
     "fetch_all": "获取全部",
