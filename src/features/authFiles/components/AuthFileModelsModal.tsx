@@ -55,6 +55,7 @@ export function AuthFileModelsModal(props: AuthFileModelsModalProps) {
         <div className={styles.modelsList}>
           {models.map((model) => {
             const excludedModel = isModelExcluded(model.id, fileType, excluded);
+            const modelName = model.display_name || model.id;
             return (
               <div
                 key={model.id}
@@ -70,10 +71,7 @@ export function AuthFileModelsModal(props: AuthFileModelsModalProps) {
                     : t('common.copy', { defaultValue: '点击复制' })
                 }
               >
-                <span className={styles.modelId}>{model.id}</span>
-                {model.display_name && model.display_name !== model.id && (
-                  <span className={styles.modelDisplayName}>{model.display_name}</span>
-                )}
+                <span className={styles.modelId}>{modelName}</span>
                 {model.type && <span className={styles.modelType}>{model.type}</span>}
                 {excludedModel && (
                   <span className={styles.modelExcludedBadge}>

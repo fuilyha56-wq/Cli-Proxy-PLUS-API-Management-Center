@@ -82,6 +82,7 @@ import {
 import { normalizeAuthIndex } from '@/utils/usage';
 import type { QuotaRenderHelpers } from './QuotaCard';
 import styles from '@/pages/QuotaPage.module.scss';
+import { compareModelIds, formatGeminiModelName } from '@/features/authFiles/hooks/useAuthFilesModels';
 
 type QuotaUpdater<T> = T | ((prev: T) => T);
 
@@ -200,9 +201,15 @@ const fetchAntigravityQuota = async (
         continue;
       }
 
-      const groups = buildAntigravityQuotaGroups(models as AntigravityModelsPayload);
+      const verifiedModels = await authFilesApi.getModelsForAuthFile(file.name);
+      const verifiedModelIds = new Set(verifiedModels.map((model) => model.id));
+      const upstreamModels = models as AntigravityModelsPayload;
+      const availableModels = Object.fromEntries(
+        [...verifiedModelIds].map((modelId) => [modelId, upstreamModels[modelId] ?? {}])
+      ) as AntigravityModelsPayload;
+      const groups = buildAntigravityQuotaGroups(availableModels);
       const allModels = buildAntigravityModelDetails(
-        models as AntigravityModelsPayload,
+        availableModels,
         groups
       );
       return { groups, allModels };
@@ -781,12 +788,12 @@ const renderAntigravityItems = (
   if (allModels.length > 0) {
     const detailRows = allModels
       .slice()
-      .sort((a, b) => (a.groupId ?? '').localeCompare(b.groupId ?? ''))
+      .sort((a, b) => compareModelIds(a.id, b.id))
       .map((model) => {
         const fraction = model.remainingFraction;
         const modelPercent = fraction === null ? null : Math.round(Math.max(0, Math.min(1, fraction)) * 100);
         const modelReset = formatQuotaResetTime(model.resetTime);
-        const modelLabel = model.displayName && model.displayName !== model.id ? model.displayName : model.id;
+        const modelLabel = formatGeminiModelName(model.id);
         const groupTag = model.groupId
           ? h('span', { className: styleMap.quotaModelGroup }, model.groupId)
           : h('span', { className: styleMap.quotaModelGroupUngrouped }, t('antigravity_quota.ungrouped'));
