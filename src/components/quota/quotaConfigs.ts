@@ -30,7 +30,6 @@ import type {
 } from '@/types';
 import { apiCallApi, authFilesApi, getApiCallErrorMessage } from '@/services/api';
 import {
-  ANTIGRAVITY_QUOTA_URLS,
   ANTIGRAVITY_REQUEST_HEADERS,
   CLAUDE_USAGE_URL,
   CLAUDE_REQUEST_HEADERS,
@@ -67,6 +66,7 @@ import {
   buildAntigravityModelDetails,
   buildGeminiCliQuotaBuckets,
   createStatusError,
+  resolveAntigravityQuotaUrls,
   getGeminiCliQuotaCompatibilityIssue,
   getStatusFromError,
   refreshGeminiCliAccessToken,
@@ -174,7 +174,7 @@ const fetchAntigravityQuota = async (
   let priorityStatus: number | undefined;
   let hadSuccess = false;
 
-  for (const url of ANTIGRAVITY_QUOTA_URLS) {
+  for (const url of resolveAntigravityQuotaUrls()) {
     try {
       const result = await apiCallApi.request({
         authIndex,

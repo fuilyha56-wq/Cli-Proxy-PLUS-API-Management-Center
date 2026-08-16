@@ -18,7 +18,13 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Select } from '@/components/ui/Select';
 import { copyToClipboard } from '@/utils/clipboard';
+import {
+  readAntigravityEndpointPolicy,
+  writeAntigravityEndpointPolicy,
+  type AntigravityEndpointPolicy,
+} from '@/utils/quota';
 import {
   MAX_CARD_PAGE_SIZE,
   MIN_CARD_PAGE_SIZE,
@@ -62,6 +68,8 @@ export function AuthFilesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
   const [pageSizeInput, setPageSizeInput] = useState('9');
+  const [antigravityEndpointPolicy, setAntigravityEndpointPolicy] =
+    useState<AntigravityEndpointPolicy>(readAntigravityEndpointPolicy);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<AuthFileItem | null>(null);
   const [viewMode, setViewMode] = useState<'diagram' | 'list' | 'models'>('list');
@@ -549,6 +557,30 @@ export function AuthFilesPage() {
                 }}
               />
             </div>
+            {filter === 'antigravity' && (
+              <div className={styles.filterItem}>
+                <label>{t('auth_files.antigravity_endpoint_label')}</label>
+                <Select
+                  value={antigravityEndpointPolicy}
+                  options={[
+                    { value: 'auto', label: t('auth_files.antigravity_endpoint_auto') },
+                    { value: 'daily', label: t('auth_files.antigravity_endpoint_daily') },
+                    { value: 'sandbox', label: t('auth_files.antigravity_endpoint_sandbox') },
+                    {
+                      value: 'production',
+                      label: t('auth_files.antigravity_endpoint_production'),
+                    },
+                  ]}
+                  onChange={(value) => {
+                    const policy = value as AntigravityEndpointPolicy;
+                    setAntigravityEndpointPolicy(policy);
+                    writeAntigravityEndpointPolicy(policy);
+                  }}
+                  ariaLabel={t('auth_files.antigravity_endpoint_label')}
+                  className={styles.antigravityEndpointSelect}
+                />
+              </div>
+            )}
           </div>
         </div>
 
