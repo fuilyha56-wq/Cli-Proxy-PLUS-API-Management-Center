@@ -124,7 +124,7 @@ export const ANTIGRAVITY_QUOTA_GROUPS: AntigravityQuotaGroupDefinition[] = [
   {
     id: 'gemini-2-5-pro',
     label: 'Gemini 2.5 Pro',
-    identifiers: ['gemini-2.5-pro', 'gemini-pro-agent'],
+    identifiers: ['gemini-2.5-pro'],
   },
   {
     id: 'gemini-image',

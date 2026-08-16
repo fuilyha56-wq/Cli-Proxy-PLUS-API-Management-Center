@@ -270,20 +270,24 @@ export function buildAntigravityModelDetails(
   groups: AntigravityQuotaGroup[]
 ): AntigravityModelDetail[] {
   const groupIdByModel = new Map<string, string>();
+  const groupLabelById = new Map<string, string>();
   groups.forEach((group) => {
     group.models.forEach((modelId) => {
       groupIdByModel.set(modelId, group.id);
     });
+    groupLabelById.set(group.id, group.label);
   });
 
   return Object.entries(models).map(([id, entry]) => {
     const info = getAntigravityQuotaInfo(entry);
+    const groupId = groupIdByModel.get(id);
     return {
       id,
       displayName: info.displayName,
       remainingFraction: info.remainingFraction,
       resetTime: info.resetTime,
-      groupId: groupIdByModel.get(id),
+      groupId,
+      groupLabel: groupId ? groupLabelById.get(groupId) : undefined,
     };
   });
 }

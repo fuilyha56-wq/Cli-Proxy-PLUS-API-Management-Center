@@ -794,8 +794,8 @@ const renderAntigravityItems = (
         const modelPercent = fraction === null ? null : Math.round(Math.max(0, Math.min(1, fraction)) * 100);
         const modelReset = formatQuotaResetTime(model.resetTime);
         const modelLabel = formatGeminiModelName(model.id);
-        const groupTag = model.groupId
-          ? h('span', { className: styleMap.quotaModelGroup }, model.groupId)
+        const groupTag = model.groupLabel
+          ? h('span', { className: styleMap.quotaModelGroup }, model.groupLabel)
           : h('span', { className: styleMap.quotaModelGroupUngrouped }, t('antigravity_quota.ungrouped'));
 
         return h(

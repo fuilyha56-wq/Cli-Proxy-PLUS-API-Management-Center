@@ -155,6 +155,7 @@ export interface AntigravityModelDetail {
   remainingFraction: number | null;
   resetTime?: string;
   groupId?: string;
+  groupLabel?: string;
 }
 
 export interface AntigravityQuotaGroup {
