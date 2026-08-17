@@ -1,15 +1,13 @@
-import { useMemo, useState, useCallback, Fragment } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { useDisableModel } from '@/hooks';
-import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
+import { formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
 import {
   formatTimestamp,
   getRateClassName,
-  filterDataByTimeRange,
   getProviderDisplayParts,
-  type DateRange,
 } from '@/utils/monitor';
 import type { UsageData } from '@/pages/MonitorPage';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -19,6 +17,7 @@ interface FailureAnalysisProps {
   loading: boolean;
   providerMap: Record<string, string>;
   providerModels: Record<string, Set<string>>;
+  timeRange: TimeRange;
 }
 
 interface ModelFailureStat {
@@ -40,15 +39,11 @@ interface FailureStat {
   models: Record<string, ModelFailureStat>;
 }
 
-export function FailureAnalysis({ data, loading, providerMap, providerModels }: FailureAnalysisProps) {
+export function FailureAnalysis({ data, loading, providerMap, providerModels, timeRange }: FailureAnalysisProps) {
   const { t } = useTranslation();
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState('');
   const [filterModel, setFilterModel] = useState('');
-
-  // 时间范围状态
-  const [timeRange, setTimeRange] = useState<TimeRange>(7);
-  const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
   // 使用禁用模型 Hook
   const {
@@ -60,26 +55,13 @@ export function FailureAnalysis({ data, loading, providerMap, providerModels }: 
     handleCancelDisable,
   } = useDisableModel({ providerMap, providerModels });
 
-  // 处理时间范围变化
-  const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
-    setTimeRange(range);
-    if (custom) {
-      setCustomRange(custom);
-    }
-  }, []);
-
-  // 根据时间范围过滤数据
-  const timeFilteredData = useMemo(() => {
-    return filterDataByTimeRange(data, timeRange, customRange);
-  }, [data, timeRange, customRange]);
-
   // 计算失败统计数据
   const failureStats = useMemo(() => {
-    if (!timeFilteredData?.apis) return [];
+    if (!data?.apis) return [];
 
     // 首先收集有失败记录的渠道
     const failedSources = new Set<string>();
-    Object.values(timeFilteredData.apis).forEach((apiData) => {
+    Object.values(data.apis).forEach((apiData) => {
       Object.values(apiData.models).forEach((modelData) => {
         modelData.details.forEach((detail) => {
           if (detail.failed) {
@@ -96,7 +78,7 @@ export function FailureAnalysis({ data, loading, providerMap, providerModels }: 
     // 统计这些渠道的所有请求
     const stats: Record<string, FailureStat> = {};
 
-    Object.values(timeFilteredData.apis).forEach((apiData) => {
+    Object.values(data.apis).forEach((apiData) => {
       Object.entries(apiData.models).forEach(([modelName, modelData]) => {
         modelData.details.forEach((detail) => {
           const source = detail.source || 'unknown';
@@ -166,7 +148,7 @@ export function FailureAnalysis({ data, loading, providerMap, providerModels }: 
       .filter((stat) => stat.failedCount > 0)
       .sort((a, b) => b.failedCount - a.failedCount)
       .slice(0, 10);
-  }, [timeFilteredData, providerMap]);
+  }, [data, providerMap]);
 
   // 获取所有渠道和模型列表
   const { channels, models } = useMemo(() => {
@@ -227,16 +209,9 @@ export function FailureAnalysis({ data, loading, providerMap, providerModels }: 
         title={t('monitor.failure.title')}
         subtitle={
           <span>
-            {formatTimeRangeCaption(timeRange, customRange, t)} · {t('monitor.failure.subtitle')}
+            {formatTimeRangeCaption(timeRange, undefined, t)} · {t('monitor.failure.subtitle')}
             <span style={{ color: 'var(--text-tertiary)' }}> · {t('monitor.failure.click_hint')}</span>
           </span>
-        }
-        extra={
-          <TimeRangeSelector
-            value={timeRange}
-            onChange={handleTimeRangeChange}
-            customRange={customRange}
-          />
         }
       >
         {/* 筛选器 */}

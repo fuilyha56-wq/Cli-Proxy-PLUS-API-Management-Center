@@ -1,15 +1,13 @@
-import { useMemo, useState, useCallback, Fragment } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { useDisableModel } from '@/hooks';
-import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
+import { formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
 import {
   formatTimestamp,
   getRateClassName,
-  filterDataByTimeRange,
   getProviderDisplayParts,
-  type DateRange,
 } from '@/utils/monitor';
 import type { UsageData } from '@/pages/MonitorPage';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -19,6 +17,7 @@ interface ChannelStatsProps {
   loading: boolean;
   providerMap: Record<string, string>;
   providerModels: Record<string, Set<string>>;
+  timeRange: TimeRange;
 }
 
 interface ModelStat {
@@ -44,16 +43,12 @@ interface ChannelStat {
   models: Record<string, ModelStat>;
 }
 
-export function ChannelStats({ data, loading, providerMap, providerModels }: ChannelStatsProps) {
+export function ChannelStats({ data, loading, providerMap, providerModels, timeRange }: ChannelStatsProps) {
   const { t } = useTranslation();
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState('');
   const [filterModel, setFilterModel] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
-
-  // 时间范围状态
-  const [timeRange, setTimeRange] = useState<TimeRange>(7);
-  const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
   // 使用禁用模型 Hook
   const {
@@ -65,26 +60,13 @@ export function ChannelStats({ data, loading, providerMap, providerModels }: Cha
     handleCancelDisable,
   } = useDisableModel({ providerMap, providerModels });
 
-  // 处理时间范围变化
-  const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
-    setTimeRange(range);
-    if (custom) {
-      setCustomRange(custom);
-    }
-  }, []);
-
-  // 根据时间范围过滤数据
-  const timeFilteredData = useMemo(() => {
-    return filterDataByTimeRange(data, timeRange, customRange);
-  }, [data, timeRange, customRange]);
-
   // 计算渠道统计数据
   const channelStats = useMemo(() => {
-    if (!timeFilteredData?.apis) return [];
+    if (!data?.apis) return [];
 
     const stats: Record<string, ChannelStat> = {};
 
-    Object.values(timeFilteredData.apis).forEach((apiData) => {
+    Object.values(data.apis).forEach((apiData) => {
       Object.entries(apiData.models).forEach(([modelName, modelData]) => {
         modelData.details.forEach((detail) => {
           const source = detail.source || 'unknown';
@@ -174,7 +156,7 @@ export function ChannelStats({ data, loading, providerMap, providerModels }: Cha
       .filter((stat) => stat.totalRequests > 0)
       .sort((a, b) => b.totalRequests - a.totalRequests)
       .slice(0, 10);
-  }, [timeFilteredData, providerMap]);
+  }, [data, providerMap]);
 
   // 获取所有渠道和模型列表
   const { channels, models } = useMemo(() => {
@@ -220,16 +202,9 @@ export function ChannelStats({ data, loading, providerMap, providerModels }: Cha
         title={t('monitor.channel.title')}
         subtitle={
           <span>
-            {formatTimeRangeCaption(timeRange, customRange, t)} · {t('monitor.channel.subtitle')}
+            {formatTimeRangeCaption(timeRange, undefined, t)} · {t('monitor.channel.subtitle')}
             <span style={{ color: 'var(--text-tertiary)' }}> · {t('monitor.channel.click_hint')}</span>
           </span>
-        }
-        extra={
-          <TimeRangeSelector
-            value={timeRange}
-            onChange={handleTimeRangeChange}
-            customRange={customRange}
-          />
         }
       >
         {/* 筛选器 */}

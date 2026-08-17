@@ -2,9 +2,8 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Card } from '@/components/ui/Card';
-import { usageApi, authFilesApi } from '@/services/api';
+import { authFilesApi } from '@/services/api';
 import { useDisableModel } from '@/hooks';
-import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
 import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
@@ -13,7 +12,6 @@ import {
   formatTimestamp,
   getRateClassName,
   getProviderDisplayParts,
-  type DateRange,
 } from '@/utils/monitor';
 import type { UsageData } from '@/pages/MonitorPage';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -23,7 +21,8 @@ interface RequestLogsProps {
   loading: boolean;
   providerMap: Record<string, string>;
   providerTypeMap: Record<string, string>;
-  apiFilter: string;
+  timeRange: number;
+  onRefresh: () => void;
 }
 
 interface LogEntry {
@@ -59,18 +58,20 @@ interface PrecomputedStats {
 // 虚拟滚动行高
 const ROW_HEIGHT = 40;
 
-export function RequestLogs({ data, loading: parentLoading, providerMap, providerTypeMap, apiFilter }: RequestLogsProps) {
+export function RequestLogs({
+  data,
+  loading,
+  providerMap,
+  providerTypeMap,
+  timeRange,
+  onRefresh,
+}: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterApi, setFilterApi] = useState('');
   const [filterModel, setFilterModel] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
   const [filterProviderType, setFilterProviderType] = useState('');
-  const [autoRefresh, setAutoRefresh] = useState(10);
-  const [countdown, setCountdown] = useState(0);
-  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // 用 ref 存储 fetchLogData，避免作为定时器 useEffect 的依赖
-  const fetchLogDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // 虚拟滚动容器 ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -83,15 +84,6 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
       headerRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
     }
   }, []);
-
-  // 时间范围状态
-  const [timeRange, setTimeRange] = useState<TimeRange>(7);
-  const [customRange, setCustomRange] = useState<DateRange | undefined>();
-
-  // 日志独立数据状态
-  const [logData, setLogData] = useState<UsageData | null>(null);
-  const [logLoading, setLogLoading] = useState(false);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
 
   // 认证文件索引到名称的映射
   const [authIndexMap, setAuthIndexMap] = useState<Record<string, string>>({});
@@ -107,26 +99,6 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
     handleCancelDisable,
     handleCloseUnsupported,
   } = useDisableModel({ providerMap, providerTypeMap });
-
-  // 处理时间范围变化
-  const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
-    setTimeRange(range);
-    if (custom) {
-      setCustomRange(custom);
-    }
-  }, []);
-
-  // 使用日志独立数据或父组件数据
-  const effectiveData = logData || data;
-  // 只在首次加载且没有数据时显示 loading 状态
-  const showLoading = (parentLoading && isFirstLoad && !effectiveData) || (logLoading && !effectiveData);
-
-  // 当父组件数据加载完成时，标记首次加载完成
-  useEffect(() => {
-    if (!parentLoading && data) {
-      setIsFirstLoad(false);
-    }
-  }, [parentLoading, data]);
 
   // 加载认证文件映射（authIndex -> 文件名）
   const loadAuthIndexMap = useCallback(async () => {
@@ -155,142 +127,14 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
     loadAuthIndexMap();
   }, [loadAuthIndexMap]);
 
-  // 独立获取日志数据
-  const fetchLogData = useCallback(async () => {
-    setLogLoading(true);
-    try {
-      const response = await usageApi.getUsage();
-      const usageData = (response?.usage ?? response) as Record<string, unknown>;
-
-      // 应用时间范围过滤
-      if (usageData?.apis) {
-        const apis = usageData.apis as UsageData['apis'];
-        const now = new Date();
-        let cutoffStart: Date;
-        let cutoffEnd: Date = new Date(now.getTime());
-        cutoffEnd.setHours(23, 59, 59, 999);
-
-        if (timeRange === 'custom' && customRange) {
-          cutoffStart = customRange.start;
-          cutoffEnd = customRange.end;
-        } else if (typeof timeRange === 'number') {
-          cutoffStart = new Date(now.getTime() - timeRange * 24 * 60 * 60 * 1000);
-          cutoffStart.setHours(0, 0, 0, 0);
-        } else {
-          cutoffStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          cutoffStart.setHours(0, 0, 0, 0);
-        }
-
-        const filtered: UsageData = { apis: {} };
-
-        Object.entries(apis).forEach(([apiKey, apiData]) => {
-          // 如果有 API 过滤器，检查是否匹配
-          if (apiFilter && !apiKey.toLowerCase().includes(apiFilter.toLowerCase())) {
-            return;
-          }
-
-          if (!apiData?.models) return;
-
-          const filteredModels: Record<string, { details: UsageData['apis'][string]['models'][string]['details'] }> = {};
-
-          Object.entries(apiData.models).forEach(([modelName, modelData]) => {
-            if (!modelData?.details || !Array.isArray(modelData.details)) return;
-
-            const filteredDetails = modelData.details.filter((detail) => {
-              const timestamp = new Date(detail.timestamp);
-              return timestamp >= cutoffStart && timestamp <= cutoffEnd;
-            });
-
-            if (filteredDetails.length > 0) {
-              filteredModels[modelName] = { details: filteredDetails };
-            }
-          });
-
-          if (Object.keys(filteredModels).length > 0) {
-            filtered.apis[apiKey] = { models: filteredModels };
-          }
-        });
-
-        setLogData(filtered);
-      }
-    } catch (err) {
-      console.error('日志刷新失败：', err);
-    } finally {
-      setLogLoading(false);
-    }
-  }, [timeRange, customRange, apiFilter]);
-
-  // 同步 fetchLogData 到 ref，确保定时器始终调用最新版本
-  useEffect(() => {
-    fetchLogDataRef.current = fetchLogData;
-  }, [fetchLogData]);
-
-  // 统一的自动刷新定时器管理
-  useEffect(() => {
-    // 清理旧定时器
-    if (countdownRef.current) {
-      clearInterval(countdownRef.current);
-      countdownRef.current = null;
-    }
-
-    // 禁用自动刷新时
-    if (autoRefresh <= 0) {
-      setCountdown(0);
-      return;
-    }
-
-    // 设置初始倒计时
-    setCountdown(autoRefresh);
-
-    // 创建新定时器
-    countdownRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          // 倒计时结束，触发刷新并重置倒计时
-          fetchLogDataRef.current();
-          return autoRefresh;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // 组件卸载或 autoRefresh 变化时清理
-    return () => {
-      if (countdownRef.current) {
-        clearInterval(countdownRef.current);
-        countdownRef.current = null;
-      }
-    };
-  }, [autoRefresh]);
-
-  // 时间范围变化时立即刷新数据
-  useEffect(() => {
-    fetchLogData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, customRange]);
-
-  // 获取倒计时显示文本
-  const getCountdownText = () => {
-    if (logLoading) {
-      return t('monitor.logs.refreshing');
-    }
-    if (autoRefresh === 0) {
-      return t('monitor.logs.manual_refresh');
-    }
-    if (countdown > 0) {
-      return t('monitor.logs.refresh_in_seconds', { seconds: countdown });
-    }
-    return t('monitor.logs.refreshing');
-  };
-
   // 将数据转换为日志条目
   const logEntries = useMemo(() => {
-    if (!effectiveData?.apis) return [];
+    if (!data?.apis) return [];
 
     const entries: LogEntry[] = [];
     let idCounter = 0;
 
-    Object.entries(effectiveData.apis).forEach(([apiKey, apiData]) => {
+    Object.entries(data.apis).forEach(([apiKey, apiData]) => {
       Object.entries(apiData.models).forEach(([modelName, modelData]) => {
         modelData.details.forEach((detail) => {
           const source = detail.source || 'unknown';
@@ -322,7 +166,7 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
 
     // 按时间倒序排序
     return entries.sort((a, b) => b.timestampMs - a.timestampMs);
-  }, [effectiveData, providerMap, providerTypeMap]);
+  }, [data, providerMap, providerTypeMap]);
 
   // 预计算所有条目的统计数据（一次性计算，避免渲染时重复计算）
   const precomputedStats = useMemo(() => {
@@ -518,16 +362,9 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
         title={t('monitor.logs.title')}
         subtitle={
           <span>
-            {formatTimeRangeCaption(timeRange, customRange, t)} · {t('monitor.logs.total_count', { count: logEntries.length })}
+            {timeRange === 1 ? t('monitor.today') : t('monitor.last_n_days', { n: timeRange })} · {t('monitor.logs.total_count', { count: logEntries.length })}
             <span style={{ color: 'var(--text-tertiary)' }}> · {t('monitor.logs.scroll_hint')}</span>
           </span>
-        }
-        extra={
-          <TimeRangeSelector
-            value={timeRange}
-            onChange={handleTimeRangeChange}
-            customRange={customRange}
-          />
         }
       >
         {/* 筛选器 */}
@@ -586,27 +423,14 @@ export function RequestLogs({ data, loading: parentLoading, providerMap, provide
             <option value="failed">{t('monitor.logs.failed')}</option>
           </select>
 
-          <span className={styles.logLastUpdate}>
-            {getCountdownText()}
-          </span>
-
-          <select
-            className={styles.logSelect}
-            value={autoRefresh}
-            onChange={(e) => setAutoRefresh(Number(e.target.value))}
-          >
-            <option value="0">{t('monitor.logs.manual_refresh')}</option>
-            <option value="5">{t('monitor.logs.refresh_5s')}</option>
-            <option value="10">{t('monitor.logs.refresh_10s')}</option>
-            <option value="15">{t('monitor.logs.refresh_15s')}</option>
-            <option value="30">{t('monitor.logs.refresh_30s')}</option>
-            <option value="60">{t('monitor.logs.refresh_60s')}</option>
-          </select>
+          <button type="button" className={styles.logRefreshButton} onClick={onRefresh} disabled={loading}>
+            {loading ? t('common.loading') : t('common.refresh')}
+          </button>
         </div>
 
         {/* 虚拟滚动表格 */}
         <div className={styles.tableWrapper}>
-          {showLoading ? (
+          {loading ? (
             <div className={styles.emptyState}>{t('common.loading')}</div>
           ) : filteredEntries.length === 0 ? (
             <div className={styles.emptyState}>{t('monitor.no_data')}</div>

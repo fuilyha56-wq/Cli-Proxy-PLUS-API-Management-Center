@@ -89,6 +89,34 @@ type QuotaUpdater<T> = T | ((prev: T) => T);
 type QuotaType = 'antigravity' | 'claude' | 'codex' | 'gemini-cli' | 'kiro' | 'github-copilot';
 
 const DEFAULT_ANTIGRAVITY_PROJECT_ID = 'bamboo-precept-lgxtn';
+const ANTIGRAVITY_GENERATE_URL = 'https://daily-cloudcode-pa.googleapis.com/v1internal:generateContent';
+const ANTIGRAVITY_VALIDATION_URL_HOST = 'accounts.google.com';
+
+const extractAntigravityValidationUrl = (body: unknown): string | undefined => {
+  if (!body || typeof body !== 'object') return undefined;
+  const error = (body as Record<string, unknown>).error;
+  if (!error || typeof error !== 'object') return undefined;
+  const details = (error as Record<string, unknown>).details;
+  if (!Array.isArray(details)) return undefined;
+
+  for (const detail of details) {
+    if (!detail || typeof detail !== 'object') continue;
+    const metadata = (detail as Record<string, unknown>).metadata;
+    const candidate = metadata && typeof metadata === 'object'
+      ? (metadata as Record<string, unknown>).validation_url
+      : undefined;
+    if (typeof candidate !== 'string') continue;
+    try {
+      const url = new URL(candidate);
+      if (url.protocol === 'https:' && url.hostname === ANTIGRAVITY_VALIDATION_URL_HOST) {
+        return url.toString();
+      }
+    } catch {
+      // Ignore malformed upstream validation URLs.
+    }
+  }
+  return undefined;
+};
 
 export interface QuotaStore {
   antigravityQuota: Record<string, AntigravityQuotaState>;
@@ -159,7 +187,11 @@ const resolveAntigravityProjectId = async (file: AuthFileItem): Promise<string> 
 const fetchAntigravityQuota = async (
   file: AuthFileItem,
   t: TFunction
-): Promise<{ groups: AntigravityQuotaGroup[]; allModels: AntigravityModelDetail[] }> => {
+): Promise<{
+  groups: AntigravityQuotaGroup[];
+  allModels: AntigravityModelDetail[];
+  verificationUrl?: string;
+}> => {
   const rawAuthIndex = file['auth_index'] ?? file.authIndex;
   const authIndex = normalizeAuthIndex(rawAuthIndex);
   if (!authIndex) {
@@ -212,7 +244,32 @@ const fetchAntigravityQuota = async (
         availableModels,
         groups
       );
-      return { groups, allModels };
+      if (verifiedModelIds.size > 0) {
+        return { groups, allModels };
+      }
+
+      const verificationResult = await apiCallApi.request({
+        authIndex,
+        method: 'POST',
+        url: ANTIGRAVITY_GENERATE_URL,
+        header: { ...ANTIGRAVITY_REQUEST_HEADERS },
+        data: JSON.stringify({
+          model: 'gemini-3-flash',
+          project: projectId,
+          requestType: 'agent',
+          request: {
+            contents: [{ role: 'user', parts: [{ text: 'OK' }] }],
+            generationConfig: { maxOutputTokens: 1 },
+          },
+        }),
+      });
+      return {
+        groups,
+        allModels,
+        verificationUrl: extractAntigravityValidationUrl(
+          verificationResult.body ?? verificationResult.bodyText
+        ),
+      };
     } catch (err: unknown) {
       lastError = err instanceof Error ? err.message : t('common.unknown_error');
       const status = getStatusFromError(err);
@@ -1258,7 +1315,7 @@ export const CLAUDE_CONFIG: QuotaConfig<
 
 export const ANTIGRAVITY_CONFIG: QuotaConfig<
   AntigravityQuotaState,
-  { groups: AntigravityQuotaGroup[]; allModels: AntigravityModelDetail[] }
+  { groups: AntigravityQuotaGroup[]; allModels: AntigravityModelDetail[]; verificationUrl?: string }
 > = {
   type: 'antigravity',
   i18nPrefix: 'antigravity_quota',
@@ -1268,10 +1325,11 @@ export const ANTIGRAVITY_CONFIG: QuotaConfig<
   storeSelector: (state) => state.antigravityQuota,
   storeSetter: 'setAntigravityQuota',
   buildLoadingState: () => ({ status: 'loading', groups: [] }),
-  buildSuccessState: ({ groups, allModels }) => ({
+  buildSuccessState: ({ groups, allModels, verificationUrl }) => ({
     status: 'success',
     groups,
     allModels,
+    verificationUrl,
   }),
   buildErrorState: (message, status) => ({
     status: 'error',

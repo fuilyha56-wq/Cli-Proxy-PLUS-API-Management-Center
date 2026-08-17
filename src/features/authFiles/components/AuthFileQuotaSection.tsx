@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { ANTIGRAVITY_CONFIG, CODEX_CONFIG, GEMINI_CLI_CONFIG, KIRO_CONFIG } from '@/components/quota';
 import { useNotificationStore, useQuotaStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
+import { copyToClipboard } from '@/utils/clipboard';
 import { getStatusFromError } from '@/utils/quota';
 import {
   isRuntimeOnlyAuthFile,
@@ -11,9 +12,15 @@ import {
   type QuotaProviderType
 } from '@/features/authFiles/constants';
 import { QuotaProgressBar } from '@/features/authFiles/components/QuotaProgressBar';
+import { IconClipboard, IconExternalLink } from '@/components/ui/icons';
 import styles from '@/pages/AuthFilesPage.module.scss';
 
-type QuotaState = { status?: string; error?: string; errorStatus?: number } | undefined;
+type QuotaState = {
+  status?: string;
+  error?: string;
+  errorStatus?: number;
+  verificationUrl?: string;
+} | undefined;
 
 const getQuotaConfig = (type: QuotaProviderType) => {
   if (type === 'antigravity') return ANTIGRAVITY_CONFIG;
@@ -97,6 +104,16 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
     quota?.errorStatus,
     quota?.error || t('common.unknown_error')
   );
+  const verificationUrl = quotaType === 'antigravity' ? quota?.verificationUrl : undefined;
+
+  const copyVerificationUrl = useCallback(async () => {
+    if (!verificationUrl) return;
+    const copied = await copyToClipboard(verificationUrl);
+    showNotification(
+      t(copied ? 'notification.link_copied' : 'notification.copy_failed'),
+      copied ? 'success' : 'error'
+    );
+  }, [showNotification, t, verificationUrl]);
 
   return (
     <div className={styles.quotaSection}>
@@ -118,7 +135,34 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
           })}
         </div>
       ) : quota ? (
-        (config.renderQuotaItems(quota, t, { styles, QuotaProgressBar }) as ReactNode)
+        <>
+          {verificationUrl && (
+            <div className={styles.quotaVerification}>
+              <span>{t('antigravity_quota.verification_required')}</span>
+              <div className={styles.quotaVerificationActions}>
+                <button
+                  type="button"
+                  className={styles.quotaVerificationButton}
+                  onClick={() => window.open(verificationUrl, '_blank', 'noopener,noreferrer')}
+                  title={t('antigravity_quota.open_verification')}
+                >
+                  <IconExternalLink size={14} />
+                  <span>{t('antigravity_quota.open_verification')}</span>
+                </button>
+                <button
+                  type="button"
+                  className={styles.quotaVerificationButton}
+                  onClick={() => void copyVerificationUrl()}
+                  title={t('antigravity_quota.copy_verification_url')}
+                >
+                  <IconClipboard size={14} />
+                  <span>{t('antigravity_quota.copy_verification_url')}</span>
+                </button>
+              </div>
+            </div>
+          )}
+          {config.renderQuotaItems(quota, t, { styles, QuotaProgressBar }) as ReactNode}
+        </>
       ) : (
         <div className={styles.quotaMessage}>{t(`${config.i18nPrefix}.idle`)}</div>
       )}

@@ -294,6 +294,17 @@ export function IconExternalLink({ size = 20, ...props }: IconProps) {
   );
 }
 
+export function IconClipboard({ size = 20, ...props }: IconProps) {
+  return (
+    <svg {...baseSvgProps} width={size} height={size} {...props}>
+      <rect width="16" height="18" x="4" y="4" rx="2" />
+      <path d="M9 4V2h6v2" />
+      <path d="M8 11h8" />
+      <path d="M8 15h6" />
+    </svg>
+  );
+}
+
 export function IconBookOpen({ size = 20, ...props }: IconProps) {
   return (
     <svg {...baseSvgProps} width={size} height={size} {...props}>

@@ -170,6 +170,7 @@ export interface AntigravityQuotaState {
   status: 'idle' | 'loading' | 'success' | 'error';
   groups: AntigravityQuotaGroup[];
   allModels?: AntigravityModelDetail[];
+  verificationUrl?: string;
   error?: string;
   errorStatus?: number;
 }

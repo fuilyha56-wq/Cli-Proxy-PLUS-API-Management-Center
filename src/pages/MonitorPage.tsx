@@ -71,6 +71,37 @@ export interface UsageData {
   }>;
 }
 
+const filterMonitorData = (data: UsageData | null, timeRange: TimeRange, apiFilter: string): UsageData | null => {
+  if (!data?.apis) return null;
+
+  const now = new Date();
+  const cutoffTime = new Date(now);
+  cutoffTime.setHours(0, 0, 0, 0);
+  cutoffTime.setDate(cutoffTime.getDate() - (timeRange - 1));
+  const filtered: UsageData = { apis: {} };
+
+  Object.entries(data.apis).forEach(([apiKey, apiData]) => {
+    if (apiFilter && !apiKey.toLowerCase().includes(apiFilter.toLowerCase())) return;
+    if (!apiData?.models) return;
+
+    const filteredModels: Record<string, { details: UsageDetail[] }> = {};
+    Object.entries(apiData.models).forEach(([modelName, modelData]) => {
+      if (!modelData?.details || !Array.isArray(modelData.details)) return;
+      const details = modelData.details.filter((detail) => {
+        const timestamp = Date.parse(detail.timestamp);
+        return Number.isFinite(timestamp) && timestamp >= cutoffTime.getTime() && timestamp <= now.getTime();
+      });
+      if (details.length > 0) filteredModels[modelName] = { details };
+    });
+
+    if (Object.keys(filteredModels).length > 0) {
+      filtered.apis[apiKey] = { models: filteredModels };
+    }
+  });
+
+  return filtered;
+};
+
 export function MonitorPage() {
   const { t } = useTranslation();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
@@ -231,50 +262,7 @@ export function MonitorPage() {
 
   // 根据时间范围过滤数据
   const filteredData = useMemo(() => {
-    if (!usageData?.apis) {
-      return null;
-    }
-
-    const now = new Date();
-    const cutoffTime = new Date(now.getTime() - timeRange * 24 * 60 * 60 * 1000);
-
-    const filtered: UsageData = { apis: {} };
-
-    Object.entries(usageData.apis).forEach(([apiKey, apiData]) => {
-      // 如果有 API 过滤器，检查是否匹配
-      if (apiFilter && !apiKey.toLowerCase().includes(apiFilter.toLowerCase())) {
-        return;
-      }
-
-      // 检查 apiData 是否有 models 属性
-      if (!apiData?.models) {
-        return;
-      }
-
-      const filteredModels: Record<string, { details: UsageDetail[] }> = {};
-
-      Object.entries(apiData.models).forEach(([modelName, modelData]) => {
-        // 检查 modelData 是否有 details 属性
-        if (!modelData?.details || !Array.isArray(modelData.details)) {
-          return;
-        }
-
-        const filteredDetails = modelData.details.filter((detail) => {
-          const timestamp = new Date(detail.timestamp);
-          return timestamp >= cutoffTime;
-        });
-
-        if (filteredDetails.length > 0) {
-          filteredModels[modelName] = { details: filteredDetails };
-        }
-      });
-
-      if (Object.keys(filteredModels).length > 0) {
-        filtered.apis[apiKey] = { models: filteredModels };
-      }
-    });
-
-    return filtered;
+    return filterMonitorData(usageData, timeRange, apiFilter);
   }, [usageData, timeRange, apiFilter]);
 
   // 处理时间范围变化
@@ -362,8 +350,8 @@ export function MonitorPage() {
 
       {/* 统计表格 */}
       <div className={styles.statsGrid}>
-        <ChannelStats data={filteredData} loading={loading} providerMap={providerMap} providerModels={providerModels} />
-        <FailureAnalysis data={filteredData} loading={loading} providerMap={providerMap} providerModels={providerModels} />
+        <ChannelStats data={filteredData} loading={loading} providerMap={providerMap} providerModels={providerModels} timeRange={timeRange} />
+        <FailureAnalysis data={filteredData} loading={loading} providerMap={providerMap} providerModels={providerModels} timeRange={timeRange} />
       </div>
 
       {/* 请求日志 */}
@@ -372,7 +360,8 @@ export function MonitorPage() {
         loading={loading}
         providerMap={providerMap}
         providerTypeMap={providerTypeMap}
-        apiFilter={apiFilter}
+        timeRange={timeRange}
+        onRefresh={loadData}
       />
     </div>
   );
