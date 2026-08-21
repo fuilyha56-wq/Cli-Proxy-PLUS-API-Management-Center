@@ -70,3 +70,17 @@ _*.py
 .env
 *.env
 !*.env.example
+
+# Local native deployment (OAuth credentials, binaries, build artifacts)
+.native/
+.vendor/
+
+# Python virtual environments & caches
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Runtime process artifacts
+cpa.pid
+*.pid
