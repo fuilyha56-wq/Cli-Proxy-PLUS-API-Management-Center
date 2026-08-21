@@ -65,6 +65,12 @@ _*.py
 *_install*.py
 *_recreate*.py
 *_poll*.py
+deploy_*.py
+
+# Native deployment scripts (OAuth credentials, server tools)
+_native*
+_native_cpamc.mjs
+_native_start_cpa.sh
 
 # Environment (contains secrets)
 .env
